@@ -132,20 +132,28 @@
   var ghost = word.cloneNode(true);
   ghost.removeAttribute('data-word'); ghost.setAttribute('opacity', '0'); ghost.setAttribute('aria-hidden', 'true');
   svg.appendChild(ghost);
+  /* zoom by shrinking the SVG viewBox around the stem of the first I: the painted area stays screen-sized
+     (scaling the element 40x made the browser repaint a layer 40x the screen, which is what stuttered) */
+  var base = [0, 0, 1600, 900], ox = 800, oy = 450, zoom = { s: 1 };
+  function applyZoom() {
+    var s = zoom.s, w = base[2] / s, h = base[3] / s;
+    var cx = ox - (ox - (base[0] + base[2] / 2)) / s, cy = oy - (oy - (base[1] + base[3] / 2)) / s;
+    svg.setAttribute('viewBox', (cx - w / 2).toFixed(3) + ' ' + (cy - h / 2).toFixed(3) + ' ' + w.toFixed(3) + ' ' + h.toFixed(3));
+  }
   function layout() {
     var small = window.innerWidth < 700;
-    svg.setAttribute('viewBox', small ? '0 0 740 1600' : '0 0 1600 900');
+    base = small ? [0, 0, 740, 1600] : [0, 0, 1600, 900];
+    svg.setAttribute('viewBox', base.join(' '));
     [word, ghost].forEach(function (t) {
       t.setAttribute('x', small ? 370 : 800);
       t.setAttribute('y', small ? 880 : 560);
       t.style.fontSize = small ? '190px' : '360px';
       t.style.letterSpacing = small ? '-6px' : '-10px';
     });
-    /* zoom origin: the middle of the stem of the first I */
-    gsap.set(wrap, { scale: 1 });
-    var ext = ghost.getExtentOfChar(1), m = svg.getScreenCTM(), r = wrap.getBoundingClientRect();
-    var px = (ext.x + ext.width / 2) * m.a + m.e - r.left, py = (ext.y + ext.height * 0.55) * m.d + m.f - r.top;
-    wrap.style.transformOrigin = px.toFixed(1) + 'px ' + py.toFixed(1) + 'px';
+    /* zoom origin: the middle of the stem of the first I, in viewBox units */
+    var ext = ghost.getExtentOfChar(1);
+    ox = ext.x + ext.width / 2; oy = ext.y + ext.height * 0.55;
+    applyZoom();
   }
   function start() {
     gsap.registerPlugin(ScrollTrigger);
@@ -156,7 +164,7 @@
     var tl = gsap.timeline({ defaults: { ease: 'none' }, scrollTrigger: { trigger: sec, start: 'top top', end: small ? '+=200%' : '+=260%', pin: true, scrub: 0.6, anticipatePin: 1, invalidateOnRefresh: true, onRefreshInit: layout } });
     tl.fromTo(a, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.1 }, 0)
       .fromTo(photo, { scale: 1.18 }, { scale: 1, duration: 1 }, 0)
-      .fromTo(wrap, { scale: 1 }, { scale: small ? 44 : 40, duration: 0.56, ease: 'power2.in' }, 0.14)
+      .fromTo(zoom, { s: 1 }, { s: small ? 44 : 40, duration: 0.56, ease: 'power2.in', onUpdate: applyZoom }, 0.14)
       .to(a, { autoAlpha: 0, duration: 0.08 }, 0.3)
       .to(wrap, { autoAlpha: 0, duration: 0.1 }, 0.56)
       .to(b, { autoAlpha: 1, y: 0, duration: 0.12, ease: 'power2.out' }, 0.78)
